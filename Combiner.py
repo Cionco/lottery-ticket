@@ -1,11 +1,24 @@
 from lottery.Masker import *
 
 class Combiner:
-    def __init__(self, c, mask_combine_type=NonZeroMasker, combine_cutoff=None):
+    """
+    A combiner takes in one or more models and combines them in some sort of way.
+    """
+
+    def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
         """
-        c is the amount of lottery tickets that should be combined. If c = 2, 2 networks shall be pretrained and then combined
+
+
+        :param mask_combine_type: Defines the type of the masker that should be applied to the new weight matrix
+                                    after combination. The NonZeroMasker is good to just keep the weight matrix as is
+                                    after combination, however one might want to keep the combined model pruned.
+                                    e.g. Combining 2 79% pruned networks yields somthing like a 60% pruned network.
+                                    When combining 4 79% pruned networks, the result is oftentimes back to using almost
+                                    70% of the available weights (less than 40% pruning)
+        :param combine_cutoff:    When a "cutoff masker" is used, this defines how much of the combined matrix will be
+                                    pruned. So if we're using mask_combine_type=FMagMasker with a combine_cutoff=79,
+                                    the resulting weight matrix will have 79% zeros.
         """
-        self.c = c
         self.mask_combine_type = mask_combine_type
         self.combine_cutoff = combine_cutoff  # maximum percentage of weights to be set after combining
 
@@ -33,7 +46,7 @@ class Combiner:
 
 class DefaultCombiner(Combiner):
     def __init__(self):
-        super().__init__(c=1)
+        super().__init__()
 
     def marry_layer(self, *marry_weights) -> np.array:
         return marry_weights[0]
@@ -51,8 +64,8 @@ def max_mag(a, b):
 
 class MaxCombiner(Combiner):
 
-    def __init__(self, c, mask_combine_type=NonZeroMasker, combine_cutoff=None):
-        super().__init__(c, mask_combine_type, combine_cutoff)
+    def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
+        super().__init__(mask_combine_type, combine_cutoff)
 
     def marry_layer(self, *marry_weights) -> np.array:
         temp = marry_weights[0]
