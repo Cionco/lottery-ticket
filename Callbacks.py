@@ -3,7 +3,7 @@ import keras
 
 class FreezeCallback(keras.callbacks.Callback):
     """
-    Callback that
+    Callback that resets "pruned" weights after each iteration
     """
 
     def __init__(self, masks):
