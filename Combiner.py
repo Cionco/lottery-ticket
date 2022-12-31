@@ -7,8 +7,6 @@ class Combiner:
 
     def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
         """
-
-
         :param mask_combine_type: Defines the type of the masker that should be applied to the new weight matrix
                                     after combination. The NonZeroMasker is good to just keep the weight matrix as is
                                     after combination, however one might want to keep the combined model pruned.
@@ -45,6 +43,10 @@ class Combiner:
 
 
 class DefaultCombiner(Combiner):
+    """
+    The Default combiner is just a Combiner implementation for default cases where no combining should happen.
+    It just returns the weights of the first model
+    """
     def __init__(self):
         super().__init__()
 
@@ -53,6 +55,14 @@ class DefaultCombiner(Combiner):
 
 
 def max_mag(a, b):
+    """
+    Elementwise, the result will have the value with the higher magnitude.
+    If magnitudes are equal, the value from a is kept
+        [1, 2, 3, -4, 4],
+        [0, -5, 5, 4, -4]
+        -----------------
+    --> [1, -5, 5, -4, 4]
+    """
     abs_a = np.abs(a)
     abs_b = np.abs(b)
 
@@ -62,7 +72,10 @@ def max_mag(a, b):
     return a * mask_a + b * mask_b
 
 
-class MaxCombiner(Combiner):
+class MaxMagCombiner(Combiner):
+    """
+    The MaxMagCombiner keeps the weight with the highest magnitude on each position
+    """
 
     def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
         super().__init__(mask_combine_type, combine_cutoff)

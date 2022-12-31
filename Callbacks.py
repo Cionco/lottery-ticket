@@ -2,6 +2,10 @@ import keras
 
 
 class FreezeCallback(keras.callbacks.Callback):
+    """
+    Callback that
+    """
+
     def __init__(self, masks):
         self.masks = masks
 

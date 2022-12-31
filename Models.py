@@ -244,7 +244,7 @@ class ModelIO:
 
             plt.plot(history.mean)
             plt.vlines(x=range(self.train_props["epochs"]), ymin=history.min_, ymax=history.max_, colors=colors[i])
-        plt.legend([100] + self.pruning_percentage, loc='upper left')
+        plt.legend([100, self.pruning_percentage], loc='upper left')
         plt.ylim(ylim)
         plt.show()
 
