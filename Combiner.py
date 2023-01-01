@@ -1,5 +1,6 @@
 from lottery.Masker import *
 
+
 class Combiner:
     """
     A combiner takes in one or more models and combines them in some sort of way.
@@ -19,6 +20,9 @@ class Combiner:
         """
         self.mask_combine_type = mask_combine_type
         self.combine_cutoff = combine_cutoff  # maximum percentage of weights to be set after combining
+
+    def __str__(self):
+        return "{}({}, {})".format(self.__class__.__name__, self.mask_combine_type.__name__, self.combine_cutoff)
 
     def marry(self, *marry_weights) -> list:
         """
@@ -47,6 +51,7 @@ class DefaultCombiner(Combiner):
     The Default combiner is just a Combiner implementation for default cases where no combining should happen.
     It just returns the weights of the first model
     """
+
     def __init__(self):
         super().__init__()
 

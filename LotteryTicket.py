@@ -69,7 +69,7 @@ class LotteryTicket:
         for _ in range(self.iterations):
             self.do_lottery(evaluate, test_data, self.pruning_percentage)
 
-    def do_lottery(self, evaluate=True, test_data=None, p=0):
+    def do_lottery(self, evaluate=False, test_data=None, p=0):
         """
         Runs a single lottery ticket experiment:
             1. Take a basic fully connected trained model

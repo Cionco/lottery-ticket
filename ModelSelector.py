@@ -13,6 +13,9 @@ class ModelSelector:
         self.n = n
         self.k = k
 
+    def __str__(self):
+        return "{}({}, {})".format(self.__class__.__name__, self.n, self.k)
+
     def select(self, *models):
         """
         Gets a tuple of ModelWrapper objects as input and selects k of them based on rules defined in subclasses

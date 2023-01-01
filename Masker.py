@@ -20,6 +20,9 @@ class Masker:
     def __repr__(self):
         return f"Pruning {self.p}% of weights for weight matrices of shape {self.mask_.shape}"
 
+    def __str__(self):
+        return "{}({})".format(self.__class__.__name__, self.p)
+
     def mask(self, w_i: np.array = None, w_f: np.array = None) -> np.array:
         pass
 
