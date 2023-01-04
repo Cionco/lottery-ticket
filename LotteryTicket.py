@@ -27,7 +27,8 @@ class LotteryTicket:
     def __init__(self, model, optimizer, loss, metrics,
                  combiner=DefaultCombiner,
                  selector=AllModelsSelector(n=1),
-                 iterations=1):
+                 iterations=1,
+                 name="mnist"):
         self.model = model
         self.optimizer = optimizer
         self.loss = loss
@@ -36,6 +37,7 @@ class LotteryTicket:
         self.selector = selector
         self.iterations = iterations
         self.pruning_percentage = [100]
+        self.name = name
 
         self.io = None
         self.pruner = None
@@ -64,7 +66,7 @@ class LotteryTicket:
 
         needed_models = self.iterations * self.selector.n
         print(needed_models)
-        self.io.load_models("mnist", needed_models)
+        self.io.load_models(self.name, needed_models)
 
         for _ in range(self.iterations):
             self.do_lottery(evaluate, test_data, self.pruning_percentage)
@@ -89,13 +91,13 @@ class LotteryTicket:
 
             m.prune(self.pruner, p)
 
-            m.reset()
-
             models.append(m)
 
         #  No matter if the last model is in the selected models, it will be used as the final model
         #  i.e. the experiment models are always % n.
         selected_models = self.selector.select(*models)
+        for m in models:
+            m.reset()
         m.source_weights = [m.model.get_weights() for m in selected_models]
         new_weights, new_maskers = self.combiner.marry(*m.source_weights)
         m.set_weights(new_weights)

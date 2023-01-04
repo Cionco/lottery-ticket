@@ -185,6 +185,7 @@ class ModelIO:
             clone = ModelWrapper(self.__new_clone())
             clone.fit(**self.train_props)
             self.models.append(clone)
+            return clone
 
         model_count = get_model_count()
         if model_count == count:
@@ -196,9 +197,8 @@ class ModelIO:
 
             load_all()
             for i in range(new_count):
-                train_new()
-
-        self.store_models("mnist")
+                new_model = train_new()
+                new_model.store(folder, i + model_count)
 
     def store_models(self, name: str):
         """
@@ -228,8 +228,11 @@ class ModelIO:
         for m in filter(filter_func, self.models):
             yield m.re_history
 
+    def get_original_history(self):
+        return _HistoryWrapper.new(*self.__get_original_model_histories((lambda x: x.refit_)))
+
     def get_experiment_history(self):
-        return _HistoryWrapper(*self.__get_pruned_model_histories(lambda x: x.refit_))
+        return _HistoryWrapper.new(*self.__get_pruned_model_histories(lambda x: x.refit_))
 
     def plot_history(self, ylim=[0, 1]):
         """
@@ -240,7 +243,7 @@ class ModelIO:
         functions = [self.__get_original_model_histories, self.__get_pruned_model_histories]
 
         for i, p in enumerate(functions):
-            history = _HistoryWrapper(*p(lambda x: x.refit_))
+            history = _HistoryWrapper.new(*p(lambda x: x.refit_))
 
             plt.plot(history.mean)
             plt.vlines(x=range(self.train_props["epochs"]), ymin=history.min_, ymax=history.max_, colors=colors[i])
@@ -255,10 +258,21 @@ class _HistoryWrapper:
     e.g. in a basic lottery ticket experiment where we just want to prune 79% of the weights, there are
     2 history Wrapper objects. One holding all original training histories and one holding all pruned training histories
     """
-    def __init__(self, *histories):
-        """Input should be callbacks.History objects"""
-        hist = [h.history['val_sparse_categorical_accuracy'] for h in histories]
-        self.histories = np.array(hist)
+    def __init__(self, histories: np.array):
+        self.histories = histories
         self.mean = np.mean(self.histories, axis=0)
         self.max_ = np.max(self.histories, axis=0)
         self.min_ = np.min(self.histories, axis=0)
+
+    @classmethod
+    def new(cls, *callbacks):
+        """Creates a new instance from callbacks.History objects"""
+        hist = np.array([h.history['val_sparse_categorical_accuracy'] for h in callbacks])
+        return cls(hist)
+
+    def __add__(self, other):
+        """
+        Takes two history wrapper objects and appends them such, that mean max and min now go over all of the histories
+        """
+        histories = np.append(self.histories, other.histories, axis=0)
+        return _HistoryWrapper(histories)
