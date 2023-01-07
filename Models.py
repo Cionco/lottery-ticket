@@ -130,7 +130,7 @@ class ModelIO:
     """
 
     def __init__(self, source_model, optimizer, loss, metrics, pruning_percentage, **train_props):
-        self.models = []
+        #self.models = []
         self.architecture = source_model
         self.optimizer = optimizer
         self.loss = loss
@@ -149,13 +149,27 @@ class ModelIO:
         m.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
         return m
 
-    def load_models(self, folder: str, count: int):
+    def load_models(self, folder, count):
+        """
+        Initiates the model loader generator by calling __load_model_generator
+        Returns nothing but sets the self.model_generator attribute
+
+        :param folder: something like the project name. folder structure is
+                        models/<projectname>/model_files
+                        history/<projectname>/history_files
+                        weights/<projectname>/weight_files
+        :param count:  how many models should be loaded
+        """
+        self.model_generator = self.__load_model_generator(folder, count)
+
+    def __load_model_generator(self, folder: str, count: int):
         """
         load count models. Depending on how many models are already saved in folders (saved):
             saved > count : load n random models from files
             saved == count: load all models from files
             saved < count : load all models from files and then create and train count - saved new models
                             new models are then saved
+        Returns a generator that loads the models when they're needed
 
         :param folder: something like the project name. folder structure is
                         models/<projectname>/model_files
@@ -175,23 +189,25 @@ class ModelIO:
             load_names = random.sample(get_model_names(), n)
             for name in load_names:
                 print(folder, name)
-                self.models.append(ModelWrapper.load(name))
+                #self.models.append(ModelWrapper.load(name))
+                yield ModelWrapper.load(name)
 
         def load_all():
             for filename in get_model_names():
-                self.models.append(ModelWrapper.load(filename))
+                #self.models.append(ModelWrapper.load(filename))
+                yield ModelWrapper.load(filename)
 
         def train_new():
             clone = ModelWrapper(self.__new_clone())
             clone.fit(**self.train_props)
-            self.models.append(clone)
+            #self.models.append(clone)
             return clone
 
         model_count = get_model_count()
         if model_count == count:
-            load_all()
+            yield from load_all()
         elif model_count >= count:
-            load_n(count)
+            yield from load_n(count)
         else:
             new_count = count - model_count
 
@@ -199,7 +215,9 @@ class ModelIO:
             for i in range(new_count):
                 new_model = train_new()
                 new_model.store(folder, i + model_count)
+                yield new_model
 
+    @DeprecationWarning
     def store_models(self, name: str):
         """
         Stores all models that just trained
@@ -208,48 +226,31 @@ class ModelIO:
             if not model.loaded:
                 model.store(name, i)
 
-    def __get_model_list(self):
-        for m in self.models:
-            yield m
-
     def fetch(self):
         """
         Get the next model for the experiment
         """
         if self.model_generator is None:
-            self.model_generator = self.__get_model_list()
+            raise ValueError("No models loaded")
         return next(self.model_generator)
 
+    @DeprecationWarning
     def __get_original_model_histories(self, filter_func=lambda x: True):
         for m in filter(filter_func, self.models):
             yield m.history
 
+    @DeprecationWarning
     def __get_pruned_model_histories(self, filter_func=lambda x: True):
         for m in filter(filter_func, self.models):
             yield m.re_history
 
+    @DeprecationWarning
     def get_original_history(self):
         return _HistoryWrapper.new(*self.__get_original_model_histories((lambda x: x.refit_)))
 
+    @DeprecationWarning
     def get_experiment_history(self):
         return _HistoryWrapper.new(*self.__get_pruned_model_histories(lambda x: x.refit_))
-
-    def plot_history(self, ylim=[0, 1]):
-        """
-        Plots the original training history and the experiment's history
-        """
-        prop_cycle = plt.rcParams['axes.prop_cycle']
-        colors = prop_cycle.by_key()['color']
-        functions = [self.__get_original_model_histories, self.__get_pruned_model_histories]
-
-        for i, p in enumerate(functions):
-            history = _HistoryWrapper.new(*p(lambda x: x.refit_))
-
-            plt.plot(history.mean)
-            plt.vlines(x=range(self.train_props["epochs"]), ymin=history.min_, ymax=history.max_, colors=colors[i])
-        plt.legend([100, self.pruning_percentage], loc='upper left')
-        plt.ylim(ylim)
-        plt.show()
 
 
 class _HistoryWrapper:
@@ -260,9 +261,14 @@ class _HistoryWrapper:
     """
     def __init__(self, histories: np.array):
         self.histories = histories
-        self.mean = np.mean(self.histories, axis=0)
-        self.max_ = np.max(self.histories, axis=0)
-        self.min_ = np.min(self.histories, axis=0)
+        if len(histories) == 0:
+            self.mean = None
+            self.max_ = None
+            self.min_ = None
+        else:
+            self.mean = np.mean(self.histories, axis=0)
+            self.max_ = np.max(self.histories, axis=0)
+            self.min_ = np.min(self.histories, axis=0)
 
     @classmethod
     def new(cls, *callbacks):
@@ -270,9 +276,15 @@ class _HistoryWrapper:
         hist = np.array([h.history['val_sparse_categorical_accuracy'] for h in callbacks])
         return cls(hist)
 
+    @classmethod
+    def empty(cls, epochs):
+        return cls(np.empty((0, epochs), float))
+
     def __add__(self, other):
         """
         Takes two history wrapper objects and appends them such, that mean max and min now go over all of the histories
         """
+        print(self.histories)
+        print(other.histories)
         histories = np.append(self.histories, other.histories, axis=0)
         return _HistoryWrapper(histories)

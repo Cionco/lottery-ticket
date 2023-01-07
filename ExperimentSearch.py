@@ -1,6 +1,8 @@
 from lottery.LotteryTicket import LotteryTicket
 import matplotlib.pyplot as plt
 
+from lottery.Models import _HistoryWrapper
+
 
 class ExperimentSearch:
     def __init__(self, architecture, optimizer, loss, metrics, combiners, selectors, pruners, iterations,
@@ -21,6 +23,8 @@ class ExperimentSearch:
 
     def fit(self, train_images, train_labels, validation_data, epochs, test_data=None):
 
+        self.original_histories = _HistoryWrapper.empty(epochs)
+
         for combiner in self.combiners:
             for selector in self.selectors:
                 for pruner in self.pruners:
@@ -38,11 +42,8 @@ class ExperimentSearch:
                     lt.fit(train_images, train_labels, validation_data=validation_data, epochs=epochs,
                            test_data=test_data)
 
-                    if self.original_histories is None:
-                        self.original_histories = lt.io.get_original_history()
-                    else:
-                        self.original_histories += lt.io.get_original_history()
-                    self.results[(combiner, selector, pruner)] = lt.io.get_experiment_history()
+                    self.original_histories += lt.hist_original
+                    self.results[(combiner, selector, pruner)] = lt.hist_experiment
 
     def plot_results(self, ylim=[0.9, 1], loc='upper left'):
         prop_cycle = plt.rcParams['axes.prop_cycle']

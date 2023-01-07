@@ -1,3 +1,4 @@
+from lottery.Models import _HistoryWrapper
 from lottery.Models import *
 from lottery.Callbacks import FreezeCallback
 from lottery.ModelSelector import *
@@ -20,6 +21,7 @@ class LotteryTicket:
                                 how many out of how many are selected.
         iterations          -- how often an experiment should be run to build an average on later
         pruning_percentage  -- what percentage to prune in the initial Lottery Ticket run
+        name                -- the name of the folder where models and everything is stored
         io                  -- Manager object for all models used in the experiment
         pruner              -- type of pruner that should be used in the initial Lottery Ticket run
     """
@@ -36,11 +38,14 @@ class LotteryTicket:
         self.combiner = combiner
         self.selector = selector
         self.iterations = iterations
-        self.pruning_percentage = [100]
+        self.pruning_percentage = 100
         self.name = name
 
         self.io = None
         self.pruner = None
+
+        self.hist_original = None
+        self.hist_experiment = None
 
     def fit(self, x, y, validation_data, epochs, evaluate=False, test_data=None):
         """
@@ -53,6 +58,9 @@ class LotteryTicket:
         :param evaluate:        if true, each final model is tested and prints an accuracy score
         :param test_data:       tuple with test data and labels
         """
+        self.hist_original = _HistoryWrapper.empty(epochs)
+        self.hist_experiment = _HistoryWrapper.empty(epochs)
+
         self.io = ModelIO(self.model,
                           self.optimizer,
                           self.loss,
@@ -100,10 +108,14 @@ class LotteryTicket:
             m.reset()
         m.source_weights = [m.model.get_weights() for m in selected_models]
         new_weights, new_maskers = self.combiner.marry(*m.source_weights)
+        for m in models:
+            self.hist_original += _HistoryWrapper.new(m.history)
+        del models  # Free the space for the model list since it's not needed anymore.
         m.set_weights(new_weights)
         m.maskers = new_maskers
 
-        m.refit(callbacks=[FreezeCallback(new_maskers)], verbose=0, **self.io.train_props)
+        m.refit(callbacks=[FreezeCallback(new_maskers)], **self.io.train_props)
+        self.hist_experiment += _HistoryWrapper.new(m.re_history)
 
         if evaluate:
             self.evaluate(test_data)
@@ -118,3 +130,17 @@ class LotteryTicket:
         test_x, test_y = test_data
         y_pred = m.predict(test_x)
         print(accuracy_score(np.argmax(y_pred, axis=1), test_y))
+
+    def plot_history(self, ylim=[0, 1]):
+        """
+        Plots the original training history and the experiment's history
+        """
+        prop_cycle = plt.rcParams['axes.prop_cycle']
+        colors = prop_cycle.by_key()['color']
+
+        for i, history in enumerate([self.hist_original, self.hist_experiment]):
+            plt.plot(history.mean)
+            plt.vlines(x=range(self.train_props["epochs"]), ymin=history.min_, ymax=history.max_, colors=colors[i])
+        plt.legend([100, self.pruning_percentage], loc='upper left')
+        plt.ylim(ylim)
+        plt.show()
