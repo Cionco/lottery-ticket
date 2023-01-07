@@ -90,3 +90,15 @@ class MaxMagCombiner(Combiner):
         for i in marry_weights[1:]:
             temp = max_mag(temp, i)
         return temp
+
+
+class AvgCombiner(Combiner):
+    """
+        The AvgCombiner takes the average of all combined weights
+    """
+
+    def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
+        super().__init__(mask_combine_type, combine_cutoff)
+
+    def marry_layer(self, *marry_weights) -> np.array:
+        return np.mean(marry_weights, axis=0)
