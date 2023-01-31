@@ -1,20 +1,23 @@
 import numpy as np
 import itertools
 from lottery.Models import ModelWrapper
+from lottery.Masker import NonZeroMasker
 
 
 class ModelSelector:
 
-    def __init__(self, n, k="auto"):
+    def __init__(self, n, k="auto", reverse=False):
         """
-        :param n: how many models the selector gets to chose from
-        :param k: how many models the selector should select. Can be any integer value or "auto".
+        :param n:       how many models the selector gets to chose from
+        :param k:       how many models the selector should select. Can be any integer value or "auto".
+        :param reverse: if True, selects the combination(s) with the worst score(s) instead of the best one(s)
         """
         self.n = n
         self.k = k
+        self.reverse = reverse
 
     def __str__(self):
-        return "{}({}, {})".format(self.__class__.__name__, self.n, self.k)
+        return "{}({}, {}, reverse={})".format(self.__class__.__name__, self.n, self.k, self.reverse)
 
     def select(self, *models):
         """
@@ -30,7 +33,9 @@ class ModelSelector:
         weight_masks = [m.model.get_weights() for m in models]
         scores = self.calc_scores(combinations, *weight_masks)
 
-        selected_combination = combinations[np.argmax(scores)]
+        arg_min_max_func = np.argmin if self.reverse else np.argmax #  defines the function that is to be used to find the right model combination
+
+        selected_combination = combinations[arg_min_max_func(scores)]
         return list(map(models.__getitem__, selected_combination))
 
     def calc_scores(self, combinations, *models) -> [int]:
@@ -69,14 +74,11 @@ class AnyDifferenceSelector(ModelSelector):
     """
     Assigns a difference score of 1 to any place in a mask where there's at least one difference along the masks
     """
-
-    def __init__(self, n: int, k: int):
-        super().__init__(n, k)
-
     def calc_difference_score(self, *matrices):
-        temp = matrices[0]
+        nzm = NonZeroMasker()
+        temp = nzm.mask(w_f=matrices[0])
         for m in matrices[1:]:
-            temp = temp + m
+            temp = temp + nzm.mask(w_f=m)
         temp = (temp % len(matrices)) > 0
         return sum(sum(temp))
 
@@ -87,45 +89,4 @@ class AllModelsSelector(ModelSelector):
     """
 
     def __init__(self, n: int = 1):
-        super().__init__(n, "auto")
-
-
-if __name__ == "__main__":
-    a = [np.array([[0, 1, 0, 0],
-                   [0, 0, 0, 1],
-                   [1, 1, 0, 1],
-                   [0, 1, 1, 1]]),
-         np.array([[1, 0, 0],
-                   [0, 1, 1],
-                   [0, 1, 1]]),
-         np.array([[1, 0],
-                   [1, 0]])
-         ]
-
-    b = [np.array([[0, 1, 0, 0],
-                   [1, 0, 0, 1],
-                   [1, 0, 1, 0],
-                   [0, 1, 0, 0]]),
-         np.array([[1, 0, 1],
-                   [1, 1, 1],
-                   [0, 1, 1]]),
-         np.array([[1, 1],
-                   [1, 1]])
-         ]
-
-    c = [np.array([[1, 1, 0, 0],
-                   [0, 0, 1, 1],
-                   [0, 0, 1, 1],
-                   [0, 0, 1, 0]]),
-         np.array([[1, 0, 0],
-                   [1, 0, 1],
-                   [1, 0, 0]]),
-         np.array([[1, 0],
-                   [1, 0]])
-         ]
-
-    w = [a, b, c]
-
-    combination = AnyDifferenceSelector(3, 2).select(a, b, c)
-
-    print(combination)
+        super().__init__(n)

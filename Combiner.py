@@ -36,10 +36,11 @@ class Combiner:
         for t in list(zip(*marry_weights)):
             weights.append(self.marry_layer(*t))
 
-        for w in weights:
+        for i, w in enumerate(weights):
             masker = self.mask_combine_type(self.combine_cutoff)
             masker.mask(w_f=w)
             maskers.append(masker)
+            weights[i] = masker.apply(w)
         return weights, maskers
 
     def marry_layer(self, *marry_weights) -> np.array:
@@ -92,6 +93,61 @@ class MaxMagCombiner(Combiner):
         return temp
 
 
+class MaxCombiner(Combiner):
+    """
+    keeps the weight with the highest value, even if that removes a connection
+    """
+
+    def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
+        super().__init__(mask_combine_type, combine_cutoff)
+
+    def marry_layer(self, *marry_weights) -> np.array:
+        temp = marry_weights[0]
+        for i in marry_weights[1:]:
+            temp = np.maximum(temp, i)
+        return temp
+
+
+class MaxWithoutZeroCombiner(Combiner):
+    """
+    keeps the weight with the highest value if multiple links are present. If only one link is present, that is always kept
+    """
+
+    def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
+        super().__init__(mask_combine_type, combine_cutoff)
+
+    def marry_layer(self, *marry_weights) -> np.array:
+        temp = marry_weights[0]
+        for i in marry_weights[1:]:
+            max_ = np.maximum(temp, i)
+            min_ = np.minimum(temp, i)
+
+            mask = np.asarray(max_ == 0, int)
+
+            temp = max_ + np.multiply(min_, mask)
+        return temp
+
+
+class MinWithoutZeroCombiner(Combiner):
+    """
+    keeps the weight with the lowest value if multiple links are present. If only one link is present, that is always kept
+    """
+
+    def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
+        super().__init__(mask_combine_type, combine_cutoff)
+
+    def marry_layer(self, *marry_weights) -> np.array:
+        temp = marry_weights[0]
+        for i in marry_weights[1:]:
+            max_ = np.maximum(temp, i)
+            min_ = np.minimum(temp, i)
+
+            mask = np.asarray(min_ == 0, int)
+
+            temp = min_ + np.multiply(max_, mask)
+        return temp
+
+
 class AvgCombiner(Combiner):
     """
         The AvgCombiner takes the average of all combined weights
@@ -102,3 +158,29 @@ class AvgCombiner(Combiner):
 
     def marry_layer(self, *marry_weights) -> np.array:
         return np.mean(marry_weights, axis=0)
+
+
+class AvgNoZeroCombiner(Combiner):
+    """
+    Takes the average of all weights, disregarding 0, i.e. disconnected connections
+    """
+
+    def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
+        super().__init__(mask_combine_type, combine_cutoff)
+
+    def marry_layer(self, *marry_weights) -> np.array:
+        weight_array = np.asarray(marry_weights, float)
+        weight_array[weight_array == 0] = np.nan
+        return np.nan_to_num(np.nanmean(weight_array, axis=0))
+
+
+class AddCombiner(Combiner):
+    """
+        The AddCombiner sums up all combined weights
+    """
+
+    def __init__(self, mask_combine_type=NonZeroMasker, combine_cutoff=None):
+        super().__init__(mask_combine_type, combine_cutoff)
+
+    def marry_layer(self, *marry_weights) -> np.array:
+        return np.sum(marry_weights, axis=0)

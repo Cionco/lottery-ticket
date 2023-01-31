@@ -4,7 +4,8 @@ import pickle
 import numpy as np
 import glob
 import random
-import matplotlib.pyplot as plt
+
+from lottery.optimizer.SGD import MaskingSGD
 
 
 class ModelWrapper:
@@ -30,14 +31,16 @@ class ModelWrapper:
         self.refit_ = False  # switches to true if the model has been fitted a second time
 
         self.maskers = None
+        self.masks = None
         self.source_weights = None
         self.re_history = None
 
     def fit(self, *args, **kwargs):
-        self.history = self.model.fit(*args, **kwargs)
+        self.history = self.model.fit(*args, **kwargs, verbose=0)
 
     def refit(self, *args, **kwargs):
         self.refit_ = True
+        self.model.optimizer.set_masks([m.mask_ for m in self.maskers])
         self.re_history = self.model.fit(*args, **kwargs)
 
     def prune(self, pruner, p):
@@ -84,6 +87,10 @@ class ModelWrapper:
             layer.set_weights([weights[i]])
             i += 1
 
+    def set_maskers(self, maskers):
+        self.maskers = maskers
+
+
     @classmethod
     def load(cls, filename):
         """
@@ -91,7 +98,7 @@ class ModelWrapper:
 
         :param filename: relative path to the model file
         """
-        m = keras.models.load_model(filename)
+        m = keras.models.load_model(filename, custom_objects={"MaskingSGD": MaskingSGD})
         with open(filename.replace("models", "history"), "rb") as file_pi:
             history = pickle.load(file_pi)
             h = keras.callbacks.History()
@@ -265,10 +272,12 @@ class _HistoryWrapper:
             self.mean = None
             self.max_ = None
             self.min_ = None
+            self.stdev = None
         else:
             self.mean = np.mean(self.histories, axis=0)
             self.max_ = np.max(self.histories, axis=0)
             self.min_ = np.min(self.histories, axis=0)
+            self.stdev = np.std(self.histories, axis=0)
 
     @classmethod
     def new(cls, *callbacks):
@@ -284,7 +293,5 @@ class _HistoryWrapper:
         """
         Takes two history wrapper objects and appends them such, that mean max and min now go over all of the histories
         """
-        print(self.histories)
-        print(other.histories)
         histories = np.append(self.histories, other.histories, axis=0)
         return _HistoryWrapper(histories)
